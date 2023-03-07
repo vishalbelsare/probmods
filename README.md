@@ -196,7 +196,7 @@ class GPModel(Model):
 model = Transformed(
     tf.float32,
     GPModel(1, 1, 1e-1),
-    data_transform="normalise+positive"
+    transform="normalise+positive",
 )
 
 # Generate data by sampling from the prior.
@@ -268,7 +268,7 @@ If a shallow copy is not appropriate, you should implement `model.__copy__`.
 
 The object `model` acts like a function from parameters to instances of model.
 To demonstrate this, we first need to create parameters.
-`probmods` uses [Varz](https://github.com/varz) manage parameters:
+`probmods` uses [Varz](https://github.com/wesselb/varz) manage parameters:
 
 ```python
 >>> from varz import Vars
@@ -644,7 +644,7 @@ Example:
 model = Transformed(
     tf.float32,
     GPModel(1, 1, 1e-2),
-    data_transform="normalise+positive"
+    transform="normalise+positive",
 )
 ```
 
@@ -667,6 +667,10 @@ For example, `"normalise+positive"` first applies a log-transform and then
 normalises the data.
 For a more detailed description of, please see
 `probmods.bijection.parse`.
+
+Finally, the optional keyword argument `learn_transform` can be set to `True`
+or `False` (default) which specifies whether the parameters of the data
+transform should be learned.
 
 ### Model Fitting
 

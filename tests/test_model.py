@@ -1,23 +1,23 @@
-import lab as B
-import lab.tensorflow  # noqa
-import lab.jax  # noqa
-import numpy as np
 import jax.numpy as jnp
+import lab as B
+import lab.jax  # noqa
+import lab.tensorflow  # noqa
+import numpy as np
 import pytest
 import tensorflow as tf
-from stheno import EQ, GP
-from varz import Vars
-
+from plum import isinstance
 from probmods import (
     Model,
-    instancemethod,
-    priormethod,
-    posteriormethod,
-    cast,
     Transformed,
+    cast,
+    instancemethod,
+    posteriormethod,
+    priormethod,
 )
-from probmods.model import _same_framework, _cast, _to_np, _safe_dtype, format_class_of
+from probmods.model import _cast, _safe_dtype, _same_framework, _to_np, format_class_of
 from probmods.test import check_model
+from stheno import EQ, GP
+from varz import Vars
 
 
 def test_same_framework():
@@ -56,11 +56,11 @@ def test_to_np():
 
 def test_safe_dtype():
     assert _safe_dtype(1) == int
-    assert _safe_dtype("a") == np.bool  # Should return a small data type.
+    assert _safe_dtype("a") == bool  # Should return a small data type.
     assert _safe_dtype(1, 1.0) == np.float64
     assert _safe_dtype(1, np.float32(1.0)) == np.float64
     assert _safe_dtype(np.int16(1), np.float32(1.0)) == np.float32
-    assert _safe_dtype(()) == np.bool  # Should return a small data type.
+    assert _safe_dtype(()) == bool  # Should return a small data type.
     assert _safe_dtype({"key": np.float32(1.0)}) == np.float32
 
 
@@ -428,8 +428,14 @@ class GPModel(Model):
         return self.f(x, self.noise).sample()
 
 
-def test_transformed_gp_model():
+@pytest.mark.parametrize("learn_transform", [True, False])
+def test_transformed_gp_model(learn_transform):
     check_model(
-        Transformed(tf.float64, GPModel(1, 1, 1e-2), data_transform="normalise"),
+        Transformed(
+            tf.float64,
+            GPModel(1, 1, 1e-2),
+            transform="normalise",
+            learn_transform=learn_transform,
+        ),
         tf.float64,
     )

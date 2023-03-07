@@ -1,11 +1,10 @@
 import copy
-import warnings
-from functools import wraps, partial
+from functools import partial, wraps
 from types import FunctionType
 
 import numpy as np
 from lab import B
-from plum import Dispatcher, parametric, Union, convert
+from plum import Dispatcher, convert, isinstance, parametric
 from plum.parametric import CovariantMeta
 from varz import Vars, minimise_l_bfgs_b
 from varz.spec import Struct
@@ -100,7 +99,7 @@ def _safe_dtype(x):
         return B.dtype(x)
     except AttributeError:
         # Return a very small data type.
-        return np.bool
+        return bool
 
 
 @_dispatch
@@ -112,7 +111,7 @@ def _safe_dtype(*xs):
 def _safe_dtype(xs: tuple):
     if len(xs) == 0:
         # Return a very small data type.
-        return np.bool
+        return bool
     else:
         return B.promote_dtypes(*(_safe_dtype(x) for x in xs))
 
@@ -504,13 +503,23 @@ class Transformed(Model):
         dtype (dtype): Initialise a variable container with this data type. You
             can also pass a variable container.
         model (model): Model to transform the outputs of.
-        data_transform (object): Transform. See :func:`.bijector.parse`.
+        transform (object, optional): Transform. See :func:`.bijector.parse`.
+            Defaults to normalising the data.
+        learn_transform (bool, optional): Learn parameters in the transform. Defaults
+            to `False`.
     """
 
-    def __init__(self, dtype, model, data_transform="normalise"):
+    def __init__(
+        self,
+        dtype,
+        model,
+        transform="normalise",
+        learn_transform=False,
+    ):
         self.vs = _as_vars(dtype)
         self.model = model
-        self.data_transform = parse_transform(data_transform)
+        self.transform = parse_transform(transform)
+        self.learn_transform = learn_transform
 
     @classmethod
     def __infer_type_parameter__(cls, dtype, model, *args, **kw_args):
@@ -519,9 +528,16 @@ class Transformed(Model):
     def __prior__(self):
         self.model = self.model(self.ps)
 
+    @property
+    def ps_transform(self):
+        if self.learn_transform:
+            return self.ps.transform
+        else:
+            return None
+
     @cast
     def __condition__(self, x, y):
-        self.model.__condition__(x, self.data_transform(y))
+        self.model.__condition__(x, self.transform(self.ps_transform, y))
 
     def __noiseless__(self):
         self.model.__noiseless__()
@@ -529,18 +545,20 @@ class Transformed(Model):
     @instancemethod
     @cast
     def logpdf(self, x, y):
-        y_transformed = self.data_transform(y)
-        return self.model.logpdf(x, y_transformed) + self.data_transform.logdet(y)
+        y_transformed = self.transform(self.ps_transform, y)
+        logpdf = self.model.logpdf(x, y_transformed)
+        logdet = self.transform.logdet(self.ps_transform, y)
+        return logpdf + logdet
 
     @instancemethod
     @cast
     def sample(self, x):
-        return self.data_transform.untransform(self.model.sample(x))
+        return self.transform.untransform(self.ps_transform, self.model.sample(x))
 
     @instancemethod
     @cast
     def predict(self, x):
-        return self.data_transform.untransform(self.model.predict(x))
+        return self.transform.untransform(self.ps_transform, self.model.predict(x))
 
     @property
     def num_outputs(self):
